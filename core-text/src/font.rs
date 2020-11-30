@@ -15,7 +15,7 @@ use font_descriptor::{CTFontSymbolicTraits, CTFontTraits, SymbolicTraitAccessors
 use font_manager::create_font_descriptor;
 
 use core_foundation::array::{CFArray, CFArrayRef};
-use core_foundation::base::{CFIndex, CFOptionFlags, CFType, CFTypeID, CFTypeRef, TCFType};
+use core_foundation::base::{CFIndex, CFOptionFlags, CFType, CFTypeID, CFTypeRef, TCFType, TCFTypeRef};
 use core_foundation::data::{CFData, CFDataRef};
 use core_foundation::dictionary::{CFDictionary, CFDictionaryRef};
 use core_foundation::number::CFNumber;
@@ -31,6 +31,8 @@ use foreign_types::ForeignType;
 use libc::{self, size_t};
 use std::os::raw::c_void;
 use std::ptr;
+
+use crate::font_manager::create_font_descriptors;
 
 type CGContextRef = *mut <CGContext as ForeignType>::CType;
 type CGFontRef = *mut <CGFont as ForeignType>::CType;
@@ -127,7 +129,21 @@ pub fn new_from_descriptor(desc: &CTFontDescriptor, pt_size: f64) -> CTFont {
 
 pub fn new_from_buffer(buffer: &[u8]) -> Result<CTFont, ()> {
     let ct_font_descriptor = create_font_descriptor(buffer)?;
-    Ok(new_from_descriptor(&ct_font_descriptor, 16.0))
+    Ok(new_from_name(&ct_font_descriptor.font_name(), 16.0)?)
+}
+
+pub fn new_fonts_from_buffer(buffer: &[u8]) -> Result<Vec<CTFont>, ()> {
+    let ct_font_descriptors = create_font_descriptors(buffer)?;
+
+    let mut ct_fonts = Vec::new();
+    unsafe {
+        for descriptor_ptr in ct_font_descriptors.get_all_values().into_iter() {
+            let descriptor = CTFontDescriptor::wrap_under_get_rule(CTFontDescriptorRef::from_void_ptr(descriptor_ptr));
+            ct_fonts.push(new_from_name(&descriptor.font_name(), 16.0)?);
+        }
+    }
+
+    Ok(ct_fonts)
 }
 
 pub fn new_from_name(name: &str, pt_size: f64) -> Result<CTFont, ()> {
